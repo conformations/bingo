@@ -22,17 +22,17 @@
 #include <string>
 #include <vector>
 
-#include <ctemplate/template.h>  
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
 DEFINE_int32(seed, 0, "Pseudorandom number generator seed");
-DEFINE_string(cell_size, "100", "Width of the bingo board's cells (in pixels)");
+DEFINE_int32(board_size, 5, "Number of cells on the board in each dimension");
+DEFINE_int32(cell_size, 100, "Width of the bingo board's cells (in pixels)");
 DEFINE_string(words_list, "", "File containing words used to create the board");
 DEFINE_string(gv_output, "", "File containing the Graphviz output");
-DEFINE_string(gv_template, "", "File containing the Graphviz ctemplate");
 
 using namespace std;
+typedef google::int32 int32;
 
 void remove_duplicates(vector<string>* words) {
   CHECK_NOTNULL(words);
@@ -41,7 +41,7 @@ void remove_duplicates(vector<string>* words) {
   words->resize(distance(words->begin(), i));
 }
 
-void write_buffer_or_die(const string& filename, const string& buffer) {
+void write_to_file_or_die(const string& filename, const string& buffer) {
   ofstream writer(filename.c_str());
   CHECK(!writer.fail());
   writer << buffer;
@@ -49,9 +49,40 @@ void write_buffer_or_die(const string& filename, const string& buffer) {
 }
 
 void check_inputs() {
+  CHECK(FLAGS_cell_size >= 0);
+  CHECK(FLAGS_board_size >= 0);
   CHECK(!FLAGS_words_list.empty());
   CHECK(!FLAGS_gv_output.empty());
-  CHECK(!FLAGS_gv_template.empty());
+}
+
+void create_board(const int32 cell_size,
+		  const int32 board_size,
+		  const vector<string>& words,
+		  string* board) {
+  CHECK_NOTNULL(board);
+
+  stringstream out;
+  out << "digraph G {" << endl
+      << "node [shape=plaintext]" << endl
+      << "a1 [label=<" << endl << endl
+      << "<TABLE border=\"5\" cellspacing=\"5\" cellpadding=\"10\" bgcolor=\"white\">" << endl;
+
+  for (int32 row = 0; row < board_size; ++row) {
+    out << "<TR>" << endl;
+    for (int32 col = 0; col < board_size; ++col) {
+      out << "<TD border=\"3\" fixedsize=\"true\" width=\"" << cell_size << "\" "
+	  << "height=\"" << cell_size << "\">"
+	  << words[row * board_size + col]
+	  << "</TD>" << endl;
+    }
+    out << "</TR>" << endl;
+  }
+
+  out << "</TABLE>" << endl
+      << ">];" << endl
+      << "}";
+
+  *board = out.str();
 }
 
 int main(int argc, char* argv[]) {
@@ -71,24 +102,13 @@ int main(int argc, char* argv[]) {
   remove_duplicates(&words);
 
   // Minimum number of words to populate the board without repeats
-  google::int32 board_size = 5;
-  google::int32 min_words = board_size * board_size;
+  int32 min_words = FLAGS_board_size * FLAGS_board_size;
   CHECK(words.size() >= min_words);
 
   // Board consists of the first min_words elements
   random_shuffle(words.begin(), words.end());
-  ctemplate::TemplateDictionary dict("bingo");
-  for (google::int32 i = 0; i < min_words; ++i) {
-    stringstream ss;
-    ss << "V" << i;
-    dict.SetValue(ss.str(), words[i]);
-  }
 
-  dict.SetValue("CELL_SIZE", FLAGS_cell_size);
-  ctemplate::Template* tmpl = ctemplate::Template::GetTemplate(
-    FLAGS_gv_template, ctemplate::DO_NOT_STRIP);
-
-  string buffer;
-  CHECK(tmpl->Expand(&buffer, &dict));
-  write_buffer_or_die(FLAGS_gv_output, buffer);
+  string board;
+  create_board(FLAGS_cell_size, FLAGS_board_size, words, &board);
+  write_to_file_or_die(FLAGS_gv_output, board);
 }
