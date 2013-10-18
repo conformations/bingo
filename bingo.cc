@@ -85,20 +85,29 @@ void create_board(const int32 cell_size,
   *board = out.str();
 }
 
+void read_words(const string& filename, vector<string>* words) {
+  CHECK_NOTNULL(words);
+
+  ifstream file(filename.c_str());
+  CHECK(file.is_open());
+
+  string line;
+  while (getline(file, line)) {
+    words->push_back(line);
+  }
+
+  file.close();
+}
+
 int main(int argc, char* argv[]) {
   google::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
   srand(FLAGS_seed);
   check_inputs();
 
-  ifstream input_stream(FLAGS_words_list.c_str());
-  CHECK(!input_stream.fail());
-
-  // TODO(cmiles) handle multi-word lines
   // TODO(cmiles) split long lines into multiple rows
-  istream_iterator<string> input_iter(input_stream);
-  istream_iterator<string> eos;
-  vector<string> words(input_iter, eos);
+  vector<string> words;
+  read_words(FLAGS_words_list, &words);
   remove_duplicates(&words);
 
   // Minimum number of words to populate the board without repeats
